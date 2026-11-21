@@ -142,16 +142,6 @@ router.get("/stats", async (req, res) => {
   });
 });
 
-// The customer's own reviews
-router.get("/my-reviews", async (req, res) => {
-  const items = await Appointment.find({ customerId: req.user!.id, "review.rating": { $gte: 1 } })
-    .sort({ "review.createdAt": -1 })
-    .populate("serviceId", SERVICE_FIELDS)
-    .select("-slotKey")
-    .lean();
-  res.json(items);
-});
-
 router.get("/:id", async (req, res) => {
   const id = requireObjectId(req.params.id, "appointment ID");
   const appointment = await Appointment.findOne({ _id: id, customerId: req.user!.id })
