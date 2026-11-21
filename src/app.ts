@@ -9,12 +9,16 @@ import adminStats from "./routes/adminStats";
 import adminTransactions from "./routes/adminTransactions";
 import adminUsers from "./routes/adminUsers";
 import appointments from "./routes/appointments";
+import payments, { webhook } from "./routes/payments";
 import services from "./routes/services";
 import { errorHandler, notFound } from "./utils/http";
 
 const app = express();
 app.set("trust proxy", true);
 app.disable("x-powered-by");
+
+// Stripe calls this directly and signs the raw body, so it must run before express.json()
+app.post("/api/payments/webhook", ...webhook);
 
 app.use(cors({ origin: env.clientUrls, credentials: true }));
 app.use(express.json({ limit: "100kb" }));
@@ -37,6 +41,7 @@ app.use("/api/admin/appointments", adminAppointments);
 app.use("/api/admin/users", adminUsers);
 app.use("/api/admin/stats", adminStats);
 app.use("/api/admin/transactions", adminTransactions);
+app.use("/api/payments", payments);
 
 app.use(notFound);
 app.use(errorHandler);
