@@ -19,6 +19,15 @@ router.get("/", async (req, res) => {
   const status = String(req.query.status ?? "");
   if (["pending", "confirmed", "cancelled"].includes(status)) filter.status = status;
   if (req.query.payment === "paid" || req.query.payment === "unpaid") filter.paymentStatus = req.query.payment;
+  if (req.query.request === "open") filter["cancelRequest.status"] = "open";
+
+  // appointment date range (YYYY-MM-DD, inclusive)
+  const range: Record<string, Date> = {};
+  for (const [key, op] of [["from", "$gte"], ["to", "$lte"]] as const) {
+    const v = typeof req.query[key] === "string" ? (req.query[key] as string) : "";
+    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) range[op] = new Date(`${v}T00:00:00.000Z`);
+  }
+  if (Object.keys(range).length) filter.appointmentDate = range;
 
   const search = typeof req.query.search === "string" ? req.query.search.trim().slice(0, 60) : "";
   if (search) {
@@ -83,13 +92,33 @@ router.patch("/:id/cancel", async (req, res) => {
   if (existing.paymentStatus === "paid") {
     throw new HttpError(409, "This appointment is already paid. Refund it in Stripe before cancelling.");
   }
+  const hadRequest = (await Appointment.findById(id).select("cancelRequest").lean())?.cancelRequest?.status === "open";
   const updated = await Appointment.findOneAndUpdate(
     { _id: id, status: { $in: ["pending", "confirmed"] }, paymentStatus: "unpaid" },
-    { $set: { status: "cancelled" }, $unset: { slotKey: 1 } },
+    {
+      $set: {
+        status: "cancelled",
+        ...(hadRequest ? { "cancelRequest.status": "approved", "cancelRequest.resolvedAt": new Date() } : {}),
+      },
+      $unset: { slotKey: 1 },
+    },
     { new: true },
   );
   if (!updated) throw new HttpError(409, "This appointment changed a moment ago. Please refresh and try again.");
-  res.json({ message: "Appointment cancelled." });
+  res.json({ message: hadRequest ? "Cancellation request approved and the appointment cancelled." : "Appointment cancelled." });
+});
+
+// Keep the appointment and tell the customer why
+router.patch("/:id/cancel-request/decline", async (req, res) => {
+  const id = requireObjectId(req.params.id, "appointment ID");
+  const note = typeof req.body?.note === "string" ? req.body.note.trim().slice(0, 300) : "";
+  const updated = await Appointment.findOneAndUpdate(
+    { _id: id, "cancelRequest.status": "open" },
+    { $set: { "cancelRequest.status": "declined", "cancelRequest.resolvedAt": new Date(), "cancelRequest.adminNote": note } },
+    { new: true },
+  );
+  if (!updated) throw new HttpError(409, "There is no open cancellation request on this appointment.");
+  res.json({ message: "Cancellation request declined. The appointment stays confirmed." });
 });
 
 export default router;
