@@ -47,10 +47,20 @@ router.get("/", async (req, res) => {
   res.json({ items, total, page, pages: Math.max(1, Math.ceil(total / limit)) });
 });
 
-// Six newest active services for the home page
+// Six active services for the home page: the newest one from each category first, so the
+// section shows variety, then topped up with the next newest if there are fewer categories
 router.get("/featured", async (_req, res) => {
-  const items = await Service.find({ status: "active" }).sort({ createdAt: -1 }).limit(6).lean();
-  res.json(items);
+  const newest = await Service.find({ status: "active" }).sort({ createdAt: -1 }).limit(60).lean();
+  const picked: typeof newest = [];
+  const seen = new Set<string>();
+  for (const s of newest) {
+    if (picked.length < 6 && !seen.has(s.category)) {
+      picked.push(s);
+      seen.add(s.category);
+    }
+  }
+  for (const s of newest) if (picked.length < 6 && !picked.includes(s)) picked.push(s);
+  res.json(picked);
 });
 
 // Every category with how many active services it has and the lowest price
