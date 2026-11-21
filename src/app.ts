@@ -1,7 +1,9 @@
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import express from "express";
+import { connectDB } from "./config/db";
 import { env } from "./config/env";
+import { errorHandler, notFound } from "./utils/http";
 
 const app = express();
 app.set("trust proxy", true);
@@ -14,5 +16,14 @@ app.use(cookieParser());
 app.get("/", (_req, res) => {
   res.json({ name: "SalonBook API", status: "running" });
 });
+
+// Every API route needs the database, so wait for the shared connection first
+app.use("/api", async (_req, _res, next) => {
+  await connectDB();
+  next();
+});
+
+app.use(notFound);
+app.use(errorHandler);
 
 export default app;
