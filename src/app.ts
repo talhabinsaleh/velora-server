@@ -3,6 +3,8 @@ import cors from "cors";
 import express from "express";
 import { connectDB } from "./config/db";
 import { env } from "./config/env";
+import adminServices from "./routes/adminServices";
+import services from "./routes/services";
 import { errorHandler, notFound } from "./utils/http";
 
 const app = express();
@@ -22,6 +24,9 @@ app.use("/api", async (_req, _res, next) => {
   await connectDB();
   next();
 });
+
+app.use("/api/services", services);
+app.use("/api/admin/services", adminServices);
 
 app.use(notFound);
 app.use(errorHandler);
