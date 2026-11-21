@@ -46,7 +46,7 @@ router.post("/", rateLimit, receive, async (req, res) => {
 
   const body = new FormData();
   body.append("image", req.file.buffer.toString("base64"));
-  body.append("name", req.file.originalname.replace(/\.[^.]+$/, "").slice(0, 60) || "salonbook");
+  body.append("name", req.file.originalname.replace(/\.[^.]+$/, "").slice(0, 60) || "velora");
 
   let data: { data?: { url?: string; display_url?: string }; error?: { message?: string } } | null = null;
   try {

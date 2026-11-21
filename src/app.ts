@@ -27,7 +27,7 @@ app.use(express.json({ limit: "100kb" }));
 app.use(cookieParser());
 
 app.get("/", (_req, res) => {
-  res.json({ name: "SalonBook API", status: "running" });
+  res.json({ name: "Velora API", status: "running" });
 });
 
 // Every API route needs the database, so wait for the shared connection first

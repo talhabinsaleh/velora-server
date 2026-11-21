@@ -19,12 +19,12 @@ import { SERVICES } from "./data";
 
 const reset = process.argv.includes("--reset");
 
-const ADMIN = { name: "Salon Admin", email: process.env.SEED_ADMIN_EMAIL || "admin@salonbook.demo" };
+const ADMIN = { name: "Salon Admin", email: process.env.SEED_ADMIN_EMAIL || "admin@velora.demo" };
 const CUSTOMERS = [
-  { name: "Nadia Rahman", email: process.env.SEED_CUSTOMER_EMAIL || "customer@salonbook.demo" },
-  { name: "Ayesha Siddiqua", email: "ayesha@salonbook.demo" },
-  { name: "Tanvir Hasan", email: "tanvir@salonbook.demo" },
-  { name: "Maliha Chowdhury", email: "maliha@salonbook.demo" },
+  { name: "Nadia Rahman", email: process.env.SEED_CUSTOMER_EMAIL || "customer@velora.demo" },
+  { name: "Ayesha Siddiqua", email: "ayesha@velora.demo" },
+  { name: "Tanvir Hasan", email: "tanvir@velora.demo" },
+  { name: "Maliha Chowdhury", email: "maliha@velora.demo" },
 ];
 
 async function ensureAccount(name: string, email: string, password: string) {

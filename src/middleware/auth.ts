@@ -4,7 +4,7 @@ import { env } from "../config/env";
 import { Role, User } from "../models/User";
 import { HttpError, isObjectId } from "../utils/http";
 
-export const TOKEN_COOKIE = "salonbook_token";
+export const TOKEN_COOKIE = "velora_token";
 
 export interface AuthUser {
   id: string;
@@ -38,7 +38,7 @@ export async function verifyJWT(req: Request, _res: Response, next: NextFunction
   try {
     payload = jwt.verify(token, env.jwtSecret(), {
       algorithms: ["HS256"],
-      issuer: "salonbook",
+      issuer: "velora",
     }) as jwt.JwtPayload;
   } catch {
     throw new HttpError(401, "Unauthorized: your session has expired. Please sign in again.");

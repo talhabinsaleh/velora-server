@@ -1,8 +1,8 @@
 {
-  "name": "salonbook-server",
+  "name": "velora-server",
   "version": "1.0.0",
   "private": true,
-  "description": "Express, TypeScript and MongoDB (Mongoose) REST API for SalonBook",
+  "description": "Express, TypeScript and MongoDB (Mongoose) REST API for Velora",
   "main": "dist/src/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
