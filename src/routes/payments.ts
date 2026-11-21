@@ -42,8 +42,9 @@ export const webhook = [
       case "checkout.session.async_payment_succeeded":
         if (session.payment_status === "paid") await recordPayment(session, "paid");
         break;
+      // A checkout page that was simply closed or expired is not a payment, so only real
+      // payment failures are recorded as failed transactions
       case "checkout.session.async_payment_failed":
-      case "checkout.session.expired":
         await recordPayment(session, "failed");
         break;
       default:
@@ -103,6 +104,9 @@ router.post("/checkout", async (req, res) => {
 
   const session = await getStripe().checkout.sessions.create({
     mode: "payment",
+    // Charge in the same currency the website shows, without Stripe's local-currency conversion
+    adaptive_pricing: { enabled: false },
+    allowed_payment_method_types: ["card"],
     customer_email: req.user!.email,
     client_reference_id: String(appointment._id),
     line_items: [
