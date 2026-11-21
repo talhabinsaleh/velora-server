@@ -17,6 +17,8 @@ This repository is the **Express server**. The website lives in [velora-client](
 - Public service listing returns **active services only**, with search by name, category filter, **sorting by price** and pagination
 - Appointment rules: customers only, active services only, no past dates or slots, **no duplicate active booking** for the same service, date and time slot (enforced by a partial unique index), customers cancel only their own *pending* requests, admins confirm only *pending* ones
 - Stripe Checkout for confirmed, unpaid appointments. **The payment status changes only in the signature-verified webhook** (`checkout.session.completed`), which also writes the transaction. There is no route to edit transactions
+- Customers can rate a visit once it is paid (one review per appointment, stored on the appointment, so no extra collection) and ask the salon to cancel a confirmed appointment; admins approve (cancels it) or decline with a reply
+- Admin analytics: earnings from verified Stripe payments and new requests by day or month for 7, 30, 90 or 365 days, compared with the previous period, plus top services and today's schedule
 - Profile updates accept only `name`, `image` and `phone`, so users can't change their own role or blocked status, or anyone else's profile
 - ImgBB upload proxy (the API key never reaches the browser) with type and size checks and rate limiting
 - Central error handler with clear messages for validation errors, bad IDs, conflicts and unknown routes
@@ -79,24 +81,26 @@ SEED_CUSTOMER_PASSWORD  (seed script only)
 | Method | Route | Access |
 | --- | --- | --- |
 | GET | `/api/services` (`search`, `category`, `sort=price_asc\|price_desc\|newest`, `page`, `limit`) | Public |
-| GET | `/api/services/featured`, `/api/services/categories`, `/api/services/meta`, `/api/services/:id` | Public |
+| GET | `/api/services/featured`, `/api/services/categories`, `/api/services/meta`, `/api/services/:id` (with ratings and reviews), `/api/services/reviews/featured` | Public |
 | GET | `/api/appointments/availability?serviceId&date` | Signed in |
 | POST | `/api/appointments` | Customer |
 | GET | `/api/appointments/mine`, `/api/appointments/stats`, `/api/appointments/:id` | Customer (own) |
 | PATCH | `/api/appointments/:id/cancel` | Customer (own, pending) |
+| POST | `/api/appointments/:id/review` | Customer (own, paid, once) |
+| POST | `/api/appointments/:id/cancel-request` | Customer (own, confirmed, unpaid) |
 | POST | `/api/payments/checkout` | Customer (own, confirmed, unpaid) |
 | GET | `/api/payments/session/:sessionId`, `/api/payments/history` | Customer (own) |
 | POST | `/api/payments/webhook` | Stripe (signature verified) |
 | GET / PATCH | `/api/profile` | Signed in (own profile) |
 | POST | `/api/upload` | Rate limited |
 | GET / POST / PATCH / DELETE | `/api/admin/services[/:id][/status]` | Admin |
-| GET / PATCH | `/api/admin/appointments[/:id][/confirm\|/cancel]` | Admin |
+| GET / PATCH | `/api/admin/appointments[/:id][/confirm\|/cancel\|/cancel-request/decline]` (`status`, `payment`, `request=open`, `from`, `to`, `search`) | Admin |
 | GET / PATCH | `/api/admin/users[/:id][/block\|/unblock]` | Admin |
-| GET | `/api/admin/stats`, `/api/admin/transactions` | Admin |
+| GET | `/api/admin/stats?days=7\|30\|90\|365`, `/api/admin/transactions` | Admin |
 
 ## Data Model
 
 - **users** (Better Auth): name, email, image, role, isBlocked, phone
 - **services**: serviceName, category, description, price, duration, image, status, createdAt
-- **appointments**: serviceId → services, customerId → users, appointmentDate, timeSlot, message, servicePrice, paymentStatus, status, createdAt
+- **appointments**: serviceId → services, customerId → users, appointmentDate, timeSlot, message, servicePrice, paymentStatus, status, createdAt (plus optional `review` and `cancelRequest` sub-documents)
 - **transactions**: appointmentId → appointments, customerId → users, amount, currency, stripeSessionId, status, createdAt
