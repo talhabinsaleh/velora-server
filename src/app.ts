@@ -10,6 +10,8 @@ import adminTransactions from "./routes/adminTransactions";
 import adminUsers from "./routes/adminUsers";
 import appointments from "./routes/appointments";
 import payments, { webhook } from "./routes/payments";
+import profile from "./routes/profile";
+import upload from "./routes/upload";
 import services from "./routes/services";
 import { errorHandler, notFound } from "./utils/http";
 
@@ -42,6 +44,8 @@ app.use("/api/admin/users", adminUsers);
 app.use("/api/admin/stats", adminStats);
 app.use("/api/admin/transactions", adminTransactions);
 app.use("/api/payments", payments);
+app.use("/api/profile", profile);
+app.use("/api/upload", upload);
 
 app.use(notFound);
 app.use(errorHandler);
