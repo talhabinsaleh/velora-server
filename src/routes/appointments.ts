@@ -122,15 +122,34 @@ router.get("/stats", async (req, res) => {
       .lean(),
   ]);
   const by = Object.fromEntries(counts.map((c) => [c._id, c.count]));
+  const [awaitingPayment, awaitingReview, reviewsGiven, openRequests] = await Promise.all([
+    Appointment.countDocuments({ customerId, status: "confirmed", paymentStatus: "unpaid" }),
+    Appointment.countDocuments({ customerId, paymentStatus: "paid", "review.rating": { $exists: false } }),
+    Appointment.countDocuments({ customerId, "review.rating": { $gte: 1 } }),
+    Appointment.countDocuments({ customerId, "cancelRequest.status": "open" }),
+  ]);
   res.json({
     total: counts.reduce((sum, c) => sum + c.count, 0),
     pending: by.pending ?? 0,
     confirmed: by.confirmed ?? 0,
     cancelled: by.cancelled ?? 0,
-    awaitingPayment: await Appointment.countDocuments({ customerId, status: "confirmed", paymentStatus: "unpaid" }),
+    awaitingPayment,
+    awaitingReview,
+    reviewsGiven,
+    openRequests,
     totalSpent: spent[0]?.total ?? 0,
     upcoming,
   });
+});
+
+// The customer's own reviews
+router.get("/my-reviews", async (req, res) => {
+  const items = await Appointment.find({ customerId: req.user!.id, "review.rating": { $gte: 1 } })
+    .sort({ "review.createdAt": -1 })
+    .populate("serviceId", SERVICE_FIELDS)
+    .select("-slotKey")
+    .lean();
+  res.json(items);
 });
 
 router.get("/:id", async (req, res) => {
@@ -163,6 +182,49 @@ router.patch("/:id/cancel", async (req, res) => {
       ? "This appointment is already confirmed and can no longer be cancelled online. Please call the salon."
       : "This appointment is already cancelled.",
   );
+});
+
+// Rate a visit: only your own, only once, and only after it has been paid
+router.post("/:id/review", async (req, res) => {
+  const id = requireObjectId(req.params.id, "appointment ID");
+  const rating = Number(req.body?.rating);
+  const comment = typeof req.body?.comment === "string" ? req.body.comment.trim() : "";
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) throw new HttpError(400, "Please choose a rating from 1 to 5 stars.");
+  if (comment.length > 600) throw new HttpError(400, "Review must be 600 characters or fewer.");
+
+  const appointment = await Appointment.findOne({ _id: id, customerId: req.user!.id }).select("paymentStatus status review").lean();
+  if (!appointment) throw new HttpError(404, "Appointment not found.");
+  if (appointment.paymentStatus !== "paid") throw new HttpError(409, "You can review a visit once it has been paid.");
+  if (appointment.review?.rating) throw new HttpError(409, "You have already reviewed this visit.");
+
+  await Appointment.updateOne(
+    { _id: id, customerId: req.user!.id, "review.rating": { $exists: false } },
+    { $set: { review: { rating, comment, hidden: false, createdAt: new Date() } } },
+  );
+  res.status(201).json({ message: "Thank you! Your review has been published." });
+});
+
+// Ask the salon to cancel a confirmed appointment (customers can't cancel confirmed ones directly)
+router.post("/:id/cancel-request", async (req, res) => {
+  const id = requireObjectId(req.params.id, "appointment ID");
+  const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+  if (reason.length < 5) throw new HttpError(400, "Please tell the salon briefly why you need to cancel.");
+  if (reason.length > 300) throw new HttpError(400, "Reason must be 300 characters or fewer.");
+
+  const appointment = await Appointment.findOne({ _id: id, customerId: req.user!.id }).select("status paymentStatus cancelRequest").lean();
+  if (!appointment) throw new HttpError(404, "Appointment not found.");
+  if (appointment.status === "pending") throw new HttpError(409, "This request is still pending, so you can cancel it directly.");
+  if (appointment.status === "cancelled") throw new HttpError(409, "This appointment is already cancelled.");
+  if (appointment.paymentStatus === "paid") {
+    throw new HttpError(409, "This appointment is already paid. Please call the salon to arrange a change or refund.");
+  }
+  if (appointment.cancelRequest?.status === "open") throw new HttpError(409, "You have already asked to cancel this appointment.");
+
+  await Appointment.updateOne(
+    { _id: id, customerId: req.user!.id, status: "confirmed" },
+    { $set: { cancelRequest: { reason, status: "open", requestedAt: new Date(), adminNote: "" } } },
+  );
+  res.status(201).json({ message: "Cancellation request sent. The salon will review it shortly." });
 });
 
 export default router;
