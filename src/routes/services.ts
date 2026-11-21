@@ -1,6 +1,6 @@
 import { Router } from "express";
-import type { QueryFilter, SortOrder } from "mongoose";
-import { CATEGORIES, Service, ServiceDoc } from "../models/Service";
+import type { SortOrder } from "mongoose";
+import { CATEGORIES, Service } from "../models/Service";
 import { escapeRegex, HttpError, isObjectId, pageParams } from "../utils/http";
 import { TIME_SLOTS } from "../utils/validate";
 
@@ -15,8 +15,8 @@ export const SORTS: Record<string, Record<string, SortOrder>> = {
 };
 
 // Builds the search / category part of a query. Shared with the admin list.
-export function serviceFilter(query: Record<string, unknown>): QueryFilter<ServiceDoc> {
-  const filter: QueryFilter<ServiceDoc> = {};
+export function serviceFilter(query: Record<string, unknown>): Record<string, unknown> {
+  const filter: Record<string, unknown> = {};
   const search = typeof query.search === "string" ? query.search.trim().slice(0, 60) : "";
   if (search) filter.serviceName = { $regex: escapeRegex(search), $options: "i" };
   const category = typeof query.category === "string" ? query.category : "";
@@ -36,7 +36,7 @@ router.get("/meta", (_req, res) => {
 
 // GET /api/services?search=&category=&sort=price_asc&page=1&limit=12  (active services only)
 router.get("/", async (req, res) => {
-  const filter = { ...serviceFilter(req.query), status: "active" };
+  const filter = { ...serviceFilter(req.query), status: "active" as const };
   const sort = SORTS[String(req.query.sort)] ?? SORTS.newest;
   const { page, limit, skip } = pageParams(req.query, 12, 48);
 
