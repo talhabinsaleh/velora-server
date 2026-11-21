@@ -54,7 +54,7 @@ async function main() {
   // Admin access is never given through sign-up. The seed promotes this one account directly.
   const admin = await ensureAccount(ADMIN.name, ADMIN.email, adminPassword);
   await User.updateOne({ _id: admin._id }, { $set: { role: "admin", isBlocked: false } });
-  const customers = [];
+  const customers: { _id: unknown }[] = [];
   for (const c of CUSTOMERS) customers.push(await ensureAccount(c.name, c.email, customerPassword));
 
   if (reset) {
