@@ -2,6 +2,8 @@ import { Router } from "express";
 import type { SortOrder } from "mongoose";
 import { CATEGORIES, Service } from "../models/Service";
 import { escapeRegex, HttpError, isObjectId, pageParams } from "../utils/http";
+import { Appointment } from "../models/Appointment";
+import { publicReview, ratingsFor, withRatings } from "../utils/ratings";
 import { TIME_SLOTS } from "../utils/validate";
 
 const router = Router();
@@ -44,7 +46,26 @@ router.get("/", async (req, res) => {
     Service.find(filter).sort(sort).skip(skip).limit(limit).lean(),
     Service.countDocuments(filter),
   ]);
-  res.json({ items, total, page, pages: Math.max(1, Math.ceil(total / limit)) });
+  res.json({ items: await withRatings(items), total, page, pages: Math.max(1, Math.ceil(total / limit)) });
+});
+
+// Latest visible reviews from real, paid visits (home page testimonials)
+router.get("/reviews/featured", async (_req, res) => {
+  const rows = await Appointment.find({ "review.rating": { $gte: 4 }, "review.hidden": { $ne: true }, "review.comment": { $ne: "" } })
+    .sort({ "review.createdAt": -1 })
+    .limit(9)
+    .populate("customerId", "name image")
+    .populate("serviceId", "serviceName category")
+    .lean();
+  const stats = await Appointment.aggregate<{ avg: number; count: number }>([
+    { $match: { "review.rating": { $gte: 1 }, "review.hidden": { $ne: true } } },
+    { $group: { _id: null, avg: { $avg: "$review.rating" }, count: { $sum: 1 } } },
+  ]);
+  res.json({
+    reviews: rows.map(publicReview),
+    average: stats[0] ? Math.round(stats[0].avg * 10) / 10 : 0,
+    count: stats[0]?.count ?? 0,
+  });
 });
 
 // Six active services for the home page: the newest one from each category first, so the
@@ -60,7 +81,7 @@ router.get("/featured", async (_req, res) => {
     }
   }
   for (const s of newest) if (picked.length < 6 && !picked.includes(s)) picked.push(s);
-  res.json(picked);
+  res.json(await withRatings(picked));
 });
 
 // Every category with how many active services it has and the lowest price
@@ -89,7 +110,21 @@ router.get("/:id", async (req, res) => {
     .sort({ createdAt: -1 })
     .limit(3)
     .lean();
-  res.json({ ...service, related });
+  const [ratings, reviews, relatedRated] = await Promise.all([
+    ratingsFor([service._id]),
+    Appointment.find({ serviceId: service._id, "review.rating": { $gte: 1 }, "review.hidden": { $ne: true } })
+      .sort({ "review.createdAt": -1 })
+      .limit(6)
+      .populate("customerId", "name image")
+      .lean(),
+    withRatings(related),
+  ]);
+  res.json({
+    ...service,
+    ...(ratings.get(String(service._id)) ?? { rating: 0, reviewCount: 0 }),
+    reviews: reviews.map(publicReview),
+    related: relatedRated,
+  });
 });
 
 export default router;
